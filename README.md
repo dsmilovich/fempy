@@ -46,3 +46,16 @@ Una vez creado el repositorio, subir el codigo proporcionado.
 El entregable del TP 3 es un repositorio con un codigo funcional donde todos los requerimientos planteados han sido implementados y testeados.
 
 # Requerimientos
+1. Implementación
+    -   Implementar un modelo de transferencia de calor en regimen transitorio con matriz de masa *lumpeada* en la clase `TransientHeatTransferSystem`, tomando como referencia `SteadyStateHeatTransferSystem` donde se implementa el modelo estacionario, agregando los cambios y funcionalidades necesarias.
+    -   Implementar un esquema de solución basado en el método de Euler Forward que utilice esta matriz.
+    -   Agregar el calculo de la matriz de masa consistente en `TransientHeatTransferSystem` y un esquema basado en el método de Euler Backward que utilice esta matriz.
+3. Verificacion
+    -   Verificar ambos métodos de solución comparando los resultados numéricos con soluciones analíticas conocidas.
+4. Opcional
+    -   Implementar el método de los gradientes conjugados (CG) para matrices densas (las matrices se almacenan en arrays bidimensionales, o en forma alternativa linealizar el array)
+    -   Implementar el almacenamiento de tipo Skyline para matrices dispersas
+    -   Comparar el costo computacional al utilizar una matriz densa vs almacenamiento Skyline para:
+        -   Resolver un sistema lineal de ecuaciones.
+        -   Realizar una multiplicacion de matriz por vector.
+        -   Realizar una multiplicacion entre dos matrices.
