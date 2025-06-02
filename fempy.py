@@ -865,8 +865,8 @@ class ForwardEulerSolver(Solver):
 
         # nodos Neumann
         for i in range(self.system.V.n_nodes):
-            if system.BC_types[i] == 0:
-                res[i] += system.BC_values[i]
+            if self.system.BC_types[i] == 0:
+                res[i] += self.system.BC_values[i]
 
         # Matriz de masa lumpeada, calculada una sola vez al crear este objeto
         C_lumped = self.system.capacity_lumped
@@ -876,8 +876,8 @@ class ForwardEulerSolver(Solver):
 
         for i in range(self.system.V.n_nodes):
             # nodos Dirichlet
-            if system.BC_types[i] == 1:
-                self.system.u[i] = system.BC_values[i]
+            if self.system.BC_types[i] == 1:
+                self.system.u[i] = self.system.BC_values[i]
 
         return
 
@@ -896,11 +896,7 @@ class BackwardEulerSolver(Solver):
         pass
 
 
-# -----------------------------------------------------------------------------
-# Example run, change the parameters, function space, system, BCs and solver
-# accordingly to generate different cases
-# -----------------------------------------------------------------------------
-if __name__ == "__main__":
+def run_steady_state():
     # Definition of the geometry
     domain_length = 1.0
     n_nodes = 11
@@ -910,7 +906,87 @@ if __name__ == "__main__":
 
     mesh = Mesh1D(x_coords)
     # modifiable (P1, P2, etc.)
-    V = FunctionSpaceSeg1(mesh)
+    V = FunctionSpaceSeg2(mesh)
+
+    # Print some info
+    print("Elements and nodal coordinates")
+    for elem in V.elements:
+        print(elem)
+        for node in elem:
+            print(V.nodal_coordinates[node])
+
+    # STEP 2: define the system
+    # Uniform conductivity, modifiable
+    k = np.zeros(V.n_nodes)
+    k[:] = 1.0e-14
+    # Uniform heat capacity
+    c = np.zeros(V.n_nodes)
+    c[:] = 1.0
+    # Uniform density
+    rho = np.zeros(V.n_nodes)
+    rho[:] = 1.0
+    # Uniform heat source/sink, modifiable
+    Q = np.zeros(V.n_nodes)
+    Q[:] = 1.0e-13
+
+    # Construct the system, modifiable (transient, etc.)
+    system = TransientHeatTransferSystem(V, k, c, rho, Q)
+
+    # Boundary conditions, modifiable
+    # Dirichlet BCs on the left
+    system.BC_types[0] = 1
+    # Dirichlet on the right
+    system.BC_types[V.n_nodes - 1] = 1
+    # Of values 0
+    system.BC_values[0] = 0
+    system.BC_values[V.n_nodes - 1] = 0
+
+    # STEP 3: assemble and solve
+    # Solver type is also modifiable
+    # solver = SteadyStateSolver(system)
+    # solver.solve()
+
+    # Print some info
+    print("Stiffness matrix K")
+    print(system.K)
+    print("RHS vector q")
+    print(system.q)
+    print("Solution vector u")
+    print(system.u)
+
+    # STEP 4: plot the solution
+    plt.rcParams["font.size"] = 16
+    plt.figure()
+
+    # FEM solution
+    plt.plot(V.nodal_coordinates, system.u, marker="o", linestyle="--", markersize=8, label="FEM")
+
+    # Analytical solution
+    analytical = [-5 * x * x + 8 * x for x in V.nodal_coordinates]
+    plt.plot(V.nodal_coordinates, analytical, linestyle="-", linewidth=2, label="Analytical")
+
+    plt.xlabel("$x$ [m]")
+    plt.ylabel(r"Temperature $u$ [°C]")
+    plt.title("1D Steady-State Temperature Profile")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    return
+
+
+def run_transient_explicit():
+    # Definition of the geometry
+    domain_length = 1.0
+    n_nodes = 11
+
+    # STEP 1: create geometry + basis
+    x_coords = np.linspace(0.0, domain_length, n_nodes)  # np.linspace(start, stop, N)
+
+    mesh = Mesh1D(x_coords)
+    # modifiable (P1, P2, etc.)
+    V = FunctionSpaceSeg2(mesh)
 
     # Print some info
     print("Elements and nodal coordinates")
@@ -958,8 +1034,9 @@ if __name__ == "__main__":
     alpha = k[0] / (c[0] * rho[0])
     # Delta x
     dx = domain_length / (n_nodes - 1)
-    # dt = CFL * dx^2 / alpha
-    dt = 0.4 * dx * dx / alpha
+    # dt = CFL * 0.5 * dx^2 / alpha para elementos lineales
+    # dt = CFL * 0.083 * dx² / alpha para elementos cuadraticos
+    dt = 0.9 * 0.083 * dx * dx / alpha
     # Implementar esto
     # dt = system.stable_dt()
 
@@ -971,17 +1048,6 @@ if __name__ == "__main__":
         print("Solution vector u, t =", t)
         print(system.u)
         solver.step(dt)
-        # Analytical solution
-        analytical = np.zeros(V.n_nodes)
-        for i in range(500):
-            analytical += (
-                (4 / np.pi)
-                * (np.sin((2 * i + 1) * np.pi * x_coords) / (2 * i + 1))
-                * np.exp(-(((2 * i + 1) * np.pi) ** 2) * alpha * t)
-            )
-
-        print("Analytical solution, t =", t)
-        print(analytical, "\n")
 
         t += dt
 
@@ -990,7 +1056,16 @@ if __name__ == "__main__":
     plt.figure()
 
     # FEM solution
-    plt.plot(V.nodal_coordinates, system.u, marker="o", linestyle="None", markersize=8, label="FEM")
+    plt.plot(V.nodal_coordinates, system.u, marker="o", linestyle="--", markersize=8, label="FEM")
+
+    # Analytical solution
+    analytical = np.zeros(V.n_nodes)
+    for i in range(1000):
+        analytical += (
+            (4 / np.pi)
+            * (np.sin((2 * i + 1) * np.pi * V.nodal_coordinates / domain_length) / (2 * i + 1))
+            * np.exp(-(((2 * i + 1) * np.pi / domain_length) ** 2) * alpha * t)
+        )
 
     plt.plot(V.nodal_coordinates, analytical, linestyle="-", linewidth=2, label="Analytical")
 
@@ -1001,3 +1076,15 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+    return
+
+
+def main():
+    run_transient_explicit()
+
+    return
+
+
+if __name__ == "__main__":
+    main()
